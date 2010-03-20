@@ -1,5 +1,6 @@
 import datetime
 import os.path
+import subprocess
 
 from django.db import models
 from django.core.files.base import ContentFile
@@ -24,7 +25,8 @@ except ImportError:
 from avatar import AVATAR_STORAGE_DIR, AVATAR_RESIZE_METHOD, \
                    AVATAR_MAX_AVATARS_PER_USER, AVATAR_THUMB_FORMAT, \
                    AVATAR_HASH_USERDIRNAMES, AVATAR_HASH_FILENAMES, \
-                   AVATAR_THUMB_QUALITY
+                   AVATAR_THUMB_QUALITY, AVATAR_USE_IMAGEMAGICK, \
+                   AVATAR_IMAGEMAGIC_CONVERT
 
 def avatar_file_path(instance=None, filename=None, size=None, ext=None):
     tmppath = [AVATAR_STORAGE_DIR]
@@ -88,6 +90,7 @@ class Avatar(models.Model):
         try:
             orig = self.avatar.storage.open(self.avatar.name, 'rb').read()
             image = Image.open(StringIO(orig))
+            args = [AVATAR_IMAGEMAGIC_CONVERT, '-']
         except IOError:
             return # What should we do here?  Render a "sorry, didn't work" img?
         quality = quality or AVATAR_THUMB_QUALITY
@@ -95,15 +98,34 @@ class Avatar(models.Model):
         if w != size or h != size:
             if w > h:
                 diff = (w - h) / 2
-                image = image.crop((diff, 0, w - diff, h))
-            else:
+                if AVATAR_USE_IMAGEMAGICK:
+                    args.extend(['-crop', '%dx%d+%d+%d' % (w, h, diff, 0)])
+                else:
+                    image = image.crop((diff, 0, w - diff, h))
+            elif h > w:
                 diff = (h - w) / 2
-                image = image.crop((0, diff, w, h - diff))
-            image = image.resize((size, size), AVATAR_RESIZE_METHOD)
+                if AVATAR_USE_IMAGEMAGICK:
+                    args.extend(['-crop', '%dx%d+%d+%d' % (w, h, 0, diff)])
+                else:
+                    image = image.crop((0, diff, w, h - diff))
+            if AVATAR_USE_IMAGEMAGICK:
+                args.extend(['-resize', '%dx%d' % (size, size)])
+            else:
+                image = image.resize((size, size), AVATAR_RESIZE_METHOD)
             if image.mode != "RGB":
-                image = image.convert("RGB")
+                if AVATAR_USE_IMAGEMAGICK:
+                    args.extend(['-colorspace', 'RGB'])
+                else:
+                    image = image.convert("RGB")
+
             thumb = StringIO()
-            image.save(thumb, AVATAR_THUMB_FORMAT, quality=quality)
+            if AVATAR_USE_IMAGEMAGICK:
+                args.extend(['-quality', str(quality), '%s:-' % AVATAR_THUMB_FORMAT])
+                proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+                thumb_contents = proc.communicate(input=orig)[0]
+                thumb.write(thumb_contents)
+            else:
+                image.save(thumb, AVATAR_THUMB_FORMAT, quality=quality)
             thumb_file = ContentFile(thumb.getvalue())
         else:
             thumb_file = ContentFile(orig)

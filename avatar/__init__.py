@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 
 try:
@@ -23,6 +25,9 @@ AVATAR_LOADERS = getattr(settings, 'AVATAR_LOADERS', [
     'avatar.util.get_gravatar_url',
     'avatar.util.get_default_avatar_url',
 ])
+AVATAR_USE_IMAGEMAGICK = getattr(settings, 'AVATAR_USE_IMAGEMAGICK', False)
+AVATAR_IMAGEMAGIC_PATH = getattr(settings, 'AVATAR_IMAGEMAGIC_PATH', '/usr/bin/')
+AVATAR_IMAGEMAGIC_CONVERT = os.path.join(AVATAR_IMAGEMAGIC_PATH, 'convert')
 
 from django.db.models import signals
 from avatar.models import Avatar
