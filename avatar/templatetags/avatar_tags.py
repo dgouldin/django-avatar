@@ -1,32 +1,25 @@
-import urllib
-
 from django import template
 from django.utils.translation import ugettext as _
-from django.utils.hashcompat import md5_constructor
+from django.utils.importlib import import_module
 from django.core.urlresolvers import reverse
 
 from django.contrib.auth.models import User
 
-from avatar import AVATAR_GRAVATAR_BACKUP, AVATAR_GRAVATAR_DEFAULT
-from avatar.util import get_primary_avatar
+from avatar import AVATAR_LOADERS
 from avatar.util import get_default_avatar_url
 
 register = template.Library()
 
 def avatar_url(user, size=80):
-    avatar = get_primary_avatar(user, size=size)
-    if avatar:
-        return avatar.avatar_url(size)
-    else:
-        if AVATAR_GRAVATAR_BACKUP:
-            params = {'s': str(size)}
-            if AVATAR_GRAVATAR_DEFAULT:
-                params['d'] = AVATAR_GRAVATAR_DEFAULT
-            return "http://www.gravatar.com/avatar/%s/?%s" % (
-                md5_constructor(user.email).hexdigest(),
-                urllib.urlencode(params))
-        else:
-            return get_default_avatar_url()
+    for loader_path in AVATAR_LOADERS:
+        path_parts = loader_path.split('.')
+        funcname = path_parts.pop()
+        module_path = '.'.join(path_parts)
+        module = import_module(module_path)
+        url = getattr(module, funcname)(user, size)
+        if url:
+            return url
+    return '' # no avatar found
 register.simple_tag(avatar_url)
 
 def avatar(user, size=80):

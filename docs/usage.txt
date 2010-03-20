@@ -119,14 +119,14 @@ AVATAR_STORAGE_DIR
     non-filesystem storage device, this will simply be appended to the beginning
     of the file name.
 
-AVATAR_GRAVATAR_BACKUP
-    A boolean determining whether to default to the Gravatar service if no
-    ``Avatar`` instance is found in the system for the given user.  Defaults to
-    True.
+AVATAR_LOADERS
+    An iterable of import paths to avatar loader functions. Loader functions
+    take two arguments (the current user and the desired avatar size) and
+    return the url of an avatar or None if the loader fails. The first
+    loader to succeed will be used as the avatar url.
 
 AVATAR_DEFAULT_URL
-    The default URL to default to if ``AVATAR_GRAVATAR_BACKUP`` is set to False
-    and there is no ``Avatar`` instance found in the system for the given user.
+    The avatar URL used by the default avatar loader.
 
 
 Management Commands

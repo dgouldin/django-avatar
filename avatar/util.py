@@ -1,10 +1,13 @@
+import urllib
+
 from django.conf import settings
+from django.utils.hashcompat import md5_constructor
 
 from django.contrib.auth.models import User
 
-from avatar import AVATAR_DEFAULT_URL
+from avatar import AVATAR_DEFAULT_URL, AVATAR_GRAVATAR_DEFAULT
 
-def get_default_avatar_url():
+def get_default_avatar_url(user=None, size=80):
     base_url = getattr(settings, 'STATIC_URL', None)
     if not base_url:
         base_url = getattr(settings, 'MEDIA_URL', '')
@@ -35,3 +38,18 @@ def get_primary_avatar(user, size=80):
         if not avatar.thumbnail_exists(size):
             avatar.create_thumbnail(size)
     return avatar
+
+def get_primary_avatar_url(user, size=80):
+    avatar = get_primary_avatar(user, size=size)
+    if avatar:
+        return avatar.avatar_url(size)
+    else:
+        return None
+
+def get_gravatar_url(user, size=80):
+    params = {'s': str(size)}
+    if AVATAR_GRAVATAR_DEFAULT:
+        params['d'] = AVATAR_GRAVATAR_DEFAULT
+    return "http://www.gravatar.com/avatar/%s/?%s" % (
+        md5_constructor(user.email).hexdigest(),
+        urllib.urlencode(params))
