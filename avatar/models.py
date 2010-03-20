@@ -28,33 +28,41 @@ from avatar import AVATAR_STORAGE_DIR, AVATAR_RESIZE_METHOD, \
                    AVATAR_THUMB_QUALITY, AVATAR_USE_IMAGEMAGICK, \
                    AVATAR_IMAGEMAGIC_CONVERT
 
-def avatar_file_path(instance=None, filename=None, size=None, ext=None):
+def avatar_file_path(instance=None, filename=None, size=None, ext=None, new=False):
     tmppath = [AVATAR_STORAGE_DIR]
     if AVATAR_HASH_USERDIRNAMES:
         tmp = md5_constructor(instance.user.username).hexdigest()
         tmppath.extend([tmp[0], tmp[1], instance.user.username])
     else:
         tmppath.append(instance.user.username)
+    
     if not filename:
         # Filename already stored in database
         filename = instance.avatar.name
-        if ext and AVATAR_HASH_FILENAMES:
-            # An extension was provided, probably because the thumbnail
-            # is in a different format than the file. Use it. Because it's
-            # only enabled if AVATAR_HASH_FILENAMES is true, we can trust
-            # it won't conflict with another filename
-            (root, oldext) = os.path.splitext(filename)
-            filename = root + "." + ext
     else:
+        filename = filename
         # File doesn't exist yet
         if AVATAR_HASH_FILENAMES:
-            (root, ext) = os.path.splitext(filename)
+            (root, oldext) = os.path.splitext(filename)
             filename = md5_constructor(smart_str(filename)).hexdigest()
-            filename = filename + ext
+            filename = filename + oldext
     if size:
         tmppath.extend(['resized', str(size)])
     tmppath.append(os.path.basename(filename))
-    return os.path.join(*tmppath)
+    filename = os.path.join(*tmppath)
+
+    # ext overrides current extension
+    (root, oldext) = os.path.splitext(filename)
+    if ext and ext != oldext:
+        filename = root + "." + ext
+        if new:
+            # file does not yet exist, avoid filename collision
+            if instance is not None:
+                filename = instance.avatar.storage.get_available_name(filename)
+            else:
+                pass # Not sure how to avoid collisions without storage
+
+    return filename
 
 def find_extension(format):
     format = format.lower()
@@ -129,15 +137,16 @@ class Avatar(models.Model):
             thumb_file = ContentFile(thumb.getvalue())
         else:
             thumb_file = ContentFile(orig)
-        thumb = self.avatar.storage.save(self.avatar_name(size), thumb_file)
+        thumb = self.avatar.storage.save(self.avatar_name(size, new=True), thumb_file)
     
     def avatar_url(self, size):
         return self.avatar.storage.url(self.avatar_name(size))
     
-    def avatar_name(self, size):
+    def avatar_name(self, size, new=False):
         ext = find_extension(AVATAR_THUMB_FORMAT)
         return avatar_file_path(
             instance=self,
             size=size,
-            ext=ext
+            ext=ext,
+            new=new,
         )
